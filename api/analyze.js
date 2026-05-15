@@ -14,19 +14,26 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: "Nedostaju slike." });
   }
 
-  const komentarSection = komentar && komentar.trim()
-    ? `\n\nSPECIJALNA UPUTSTVA OD KORISNIKA (obavezno poštuj):\n${komentar.trim()}`
-    : "";
-
   const pageCount = images.length;
-  const prompt = `You are an invoice parser. You are given ${pageCount} page(s) of the same invoice. Treat all pages as one single invoice and extract ALL line items across all pages, then group similar items together.
+  const hasKomentar = komentar && komentar.trim().length > 0;
+
+  const prompt = hasKomentar
+    ? `You are a document analysis assistant. The user has uploaded ${pageCount} page(s) of a document.
+
+The user's instruction is: ${komentar.trim()}
+
+Analyze the document and fulfill the user's request. Return your result as valid JSON only (no markdown, no backticks, no explanation).
+Use this structure but adapt fields to what makes sense for the request:
+{"vendor":"vendor name if visible","currency":"","groups":[{"naziv":"group/category name","kolicina":0,"jm":"","cena":0,"ukupno":0,"stavke":1}],"ukupno_sve":0}
+If the request is about totals per buyer/supplier, use "naziv" for the buyer/supplier name and "ukupno" for their total.`
+    : `You are an invoice parser. You are given ${pageCount} page(s) of the same invoice. Treat all pages as one single invoice and extract ALL line items across all pages, then group similar items together.
 
 Use AI judgment to group similar products intelligently. For example:
 - All variants of "zenski ves" (like "216 zenski ves", "3013 zenski ves", "218 zenski ves", "1900-M zenski ves" etc.) → group as "Zenski ves"
 - All variants of "zenska pidzama" → group as "Zenska pidzama"
 - Keep distinct products separate (carapa, boxerica, spavacica etc.)
 
-For each group: sum all quantities across all pages, sum all ukupno values, calculate weighted average price.${komentarSection}
+For each group: sum all quantities across all pages, sum all ukupno values, calculate weighted average price.
 
 Return ONLY valid JSON (no markdown, no backticks, no explanation):
 {"vendor":"vendor name if visible","currency":"EUR","groups":[{"naziv":"clean group name","kolicina":100,"jm":"1/1","cena":5.50,"ukupno":550.00,"stavke":3}],"ukupno_sve":1234.50}`;
