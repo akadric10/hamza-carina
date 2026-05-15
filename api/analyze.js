@@ -25,7 +25,7 @@ The user's instruction is: ${komentar.trim()}
 Analyze the document and fulfill the user's request. Return your result as valid JSON only (no markdown, no backticks, no explanation).
 Use this structure but adapt fields to what makes sense for the request:
 {"vendor":"vendor name if visible","currency":"","groups":[{"naziv":"group/category name","kolicina":0,"jm":"","cena":0,"ukupno":0,"stavke":1}],"ukupno_sve":0}
-If the request is about totals per buyer/supplier, use "naziv" for the buyer/supplier name and "ukupno" for their total. Pay close attention to which exact column the user mentions (e.g., "Porez", "Za naplatu", "P. vrednost") and sum only that column. Do not substitute a different column. If unsure which column is which, read the header row carefully before summing. Never assume — always match the column name exactly as the user wrote it.`
+If the request is about a specific column, extract ONLY the values from that exact column header as written by the user. Map "ukupno" to that specific column's values, not to any other column.`
     : `You are an invoice parser. You are given ${pageCount} page(s) of the same invoice. Treat all pages as one single invoice and extract ALL line items across all pages, then group similar items together.
 
 Use AI judgment to group similar products intelligently. For example:
