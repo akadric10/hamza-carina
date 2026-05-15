@@ -415,18 +415,14 @@
       <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
     </div>
     <h3>Dodaj fakturu</h3>
-    <p>Klikni ili prevuci sliku (JPG, PNG, WEBP)</p>
-    <input id="file-input" type="file" accept="image/*" style="display:none" onchange="handleFile(this.files[0])">
+    <p>Klikni ili prevuci slike (JPG, PNG, WEBP) — možeš dodati više strana odjednom</p>
+    <input id="file-input" type="file" accept="image/*" multiple style="display:none" onchange="handleFiles(this.files)">
   </div>
 
   <!-- Preview -->
-  <div id="preview-section">
-    <img id="preview-img" alt="Preview fakture" />
-    <div class="preview-info">
-      <div class="fname" id="preview-name"></div>
-      <div class="fmeta" id="preview-meta"></div>
-    </div>
-    <button class="btn-ghost" onclick="resetAll()">✕ Ukloni</button>
+  <div id="preview-section" style="display:none; margin-bottom:1.5rem;">
+    <div id="preview-grid" style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:8px;"></div>
+    <button class="btn-ghost" onclick="resetAll()">✕ Ukloni sve</button>
   </div>
 
   <!-- Group options -->
@@ -514,8 +510,8 @@
 </footer>
 
 <script>
-  let uploadedFile = null;
-  let base64Data = null;
+  let uploadedFiles = [];
+  let filesData = [];
   let parsedData = null;
 
   document.getElementById('footer-time').textContent = new Date().getFullYear();
@@ -538,33 +534,62 @@
   function handleDrop(e) {
     e.preventDefault();
     document.getElementById('upload-zone').classList.remove('drag-over');
-    const file = e.dataTransfer.files[0];
-    if (file && file.type.startsWith('image/')) handleFile(file);
+    const files = [...e.dataTransfer.files].filter(f => f.type.startsWith('image/'));
+    if (files.length) handleFiles(files);
   }
 
-  function handleFile(file) {
-    if (!file) return;
-    uploadedFile = file;
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      base64Data = e.target.result;
-      document.getElementById('preview-img').src = base64Data;
-      document.getElementById('preview-name').textContent = file.name;
-      document.getElementById('preview-meta').textContent =
-        (file.size / 1024).toFixed(0) + ' KB · ' + file.type;
-      document.getElementById('upload-zone').style.display = 'none';
-      const ps = document.getElementById('preview-section');
-      ps.style.display = 'flex';
-      const btn = document.getElementById('analyze-btn');
-      btn.disabled = false;
-    };
-    reader.readAsDataURL(file);
+  function handleFiles(fileList) {
+    const files = [...fileList].filter(f => f.type.startsWith('image/'));
+    if (!files.length) return;
+
+    uploadedFiles = [...uploadedFiles, ...files];
+    filesData = [];
+
+    const grid = document.getElementById('preview-grid');
+    grid.innerHTML = '';
+
+    let loaded = 0;
+    uploadedFiles.forEach((file, i) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        filesData[i] = { base64: e.target.result.split(',')[1], mediaType: file.type || 'image/jpeg', name: file.name };
+        loaded++;
+
+        const thumb = document.createElement('div');
+        thumb.style.cssText = 'position:relative; display:inline-block;';
+        thumb.innerHTML = `
+          <img src="${e.target.result}" style="width:80px; height:80px; object-fit:cover; border-radius:4px; border:1px solid var(--gray-200);" title="${file.name}">
+          <div style="position:absolute; bottom:2px; left:2px; background:rgba(0,0,0,0.6); color:#fff; font-size:10px; padding:1px 4px; border-radius:2px;">str. ${i+1}</div>
+          <button onclick="removeFile(${i})" style="position:absolute; top:-6px; right:-6px; width:18px; height:18px; border-radius:50%; background:var(--black); color:#fff; border:none; cursor:pointer; font-size:11px; line-height:18px; text-align:center; padding:0;">✕</button>
+        `;
+        grid.appendChild(thumb);
+
+        if (loaded === uploadedFiles.length) {
+          document.getElementById('upload-zone').style.display = 'none';
+          document.getElementById('preview-section').style.display = 'block';
+          const btn = document.getElementById('analyze-btn');
+          btn.disabled = false;
+        }
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function removeFile(i) {
+    uploadedFiles.splice(i, 1);
+    filesData.splice(i, 1);
+    if (uploadedFiles.length === 0) {
+      resetAll();
+    } else {
+      handleFiles([]);
+    }
   }
 
   function resetAll() {
-    uploadedFile = null; base64Data = null; parsedData = null;
+    uploadedFiles = []; filesData = []; parsedData = null;
     document.getElementById('upload-zone').style.display = 'block';
     document.getElementById('preview-section').style.display = 'none';
+    document.getElementById('preview-grid').innerHTML = '';
     document.getElementById('results').style.display = 'none';
     setStatus(null);
     const btn = document.getElementById('analyze-btn');
@@ -584,29 +609,26 @@
   }
 
   async function analyzeInvoice() {
-    if (!uploadedFile || !base64Data) return;
+    if (!filesData.length) return;
     document.getElementById('results').style.display = 'none';
 
     const btn = document.getElementById('analyze-btn');
     btn.disabled = true;
     btn.textContent = 'Analizujem...';
 
-    const groupBy = document.querySelector('input[name="group"]:checked').value;
-    const b64 = base64Data.split(',')[1];
-    const mediaType = uploadedFile.type || 'image/jpeg';
+    const komentar = document.getElementById('komentar').value.trim();
+    const pageCount = filesData.length;
 
-    setStatus('AI čita fakturu...');
+    setStatus(`AI čita fakturu (${pageCount} ${pageCount === 1 ? 'strana' : 'strane/strana'})...`);
 
     try {
-      const komentar = document.getElementById('komentar').value.trim();
       const response = await fetch('/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imageBase64: b64, mediaType, groupBy, komentar }),
+        body: JSON.stringify({ images: filesData, komentar }),
       });
 
       setStatus('Obrađujem rezultate...');
-
       const data = await response.json();
 
       if (!response.ok || data.error) {
@@ -617,7 +639,7 @@
       }
 
       parsedData = data;
-      setStatus('Grupisano uspešno!', 'success');
+      setStatus(`Grupisano uspešno! (${pageCount} ${pageCount === 1 ? 'strana' : 'strane/strana'})`, 'success');
       renderResults(data);
       btn.disabled = false;
       btn.innerHTML = `<svg viewBox="0 0 24 24" style="width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/><path d="M11 8v6M8 11h6"/></svg> Analiziraj drugu fakturu`;
