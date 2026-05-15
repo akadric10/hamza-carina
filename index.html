@@ -1,0 +1,721 @@
+<!DOCTYPE html>
+<html lang="sr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Faktura Grupiser — AI uvozni alat</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --black: #0d0d0d;
+    --white: #f7f5f0;
+    --gray-100: #eeece7;
+    --gray-200: #dddad3;
+    --gray-400: #b0aca3;
+    --gray-600: #6b6760;
+    --accent: #1a4a2e;
+    --accent-light: #e8f0ea;
+    --accent-mid: #3a7a50;
+    --danger: #8b2020;
+    --danger-light: #fdf0f0;
+    --warning: #7a5c10;
+    --warning-light: #fdf8ec;
+    --success: #1a4a2e;
+    --success-light: #e8f0ea;
+    --border: 1px solid var(--gray-200);
+    --radius: 4px;
+    --mono: 'IBM Plex Mono', monospace;
+    --sans: 'IBM Plex Sans', sans-serif;
+  }
+
+  html { font-family: var(--sans); background: var(--white); color: var(--black); font-size: 15px; line-height: 1.5; }
+
+  body { min-height: 100vh; display: flex; flex-direction: column; }
+
+  header {
+    border-bottom: var(--border);
+    padding: 0 2rem;
+    height: 56px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--white);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  .logo {
+    font-family: var(--mono);
+    font-size: 14px;
+    font-weight: 500;
+    letter-spacing: 0.05em;
+    color: var(--black);
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .logo-dot {
+    width: 8px; height: 8px;
+    background: var(--accent-mid);
+    border-radius: 50%;
+    display: inline-block;
+  }
+
+  .header-badge {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--gray-600);
+    border: var(--border);
+    padding: 3px 10px;
+    border-radius: 2px;
+    letter-spacing: 0.08em;
+  }
+
+  main {
+    flex: 1;
+    max-width: 860px;
+    margin: 0 auto;
+    width: 100%;
+    padding: 3rem 2rem;
+  }
+
+  .hero {
+    margin-bottom: 3rem;
+    border-bottom: var(--border);
+    padding-bottom: 2rem;
+  }
+
+  .hero h1 {
+    font-size: 28px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    margin-bottom: 0.5rem;
+    line-height: 1.2;
+  }
+
+  .hero h1 span { color: var(--accent-mid); }
+
+  .hero p {
+    color: var(--gray-600);
+    font-size: 15px;
+    max-width: 500px;
+  }
+
+  /* Upload zone */
+  .upload-zone {
+    border: 2px dashed var(--gray-200);
+    border-radius: var(--radius);
+    padding: 3rem 2rem;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+    background: var(--gray-100);
+    margin-bottom: 1.5rem;
+  }
+
+  .upload-zone:hover, .upload-zone.drag-over {
+    border-color: var(--accent-mid);
+    background: var(--accent-light);
+  }
+
+  .upload-icon {
+    width: 48px; height: 48px;
+    margin: 0 auto 1rem;
+    border: 1.5px solid var(--gray-400);
+    border-radius: var(--radius);
+    display: flex; align-items: center; justify-content: center;
+    background: var(--white);
+  }
+
+  .upload-icon svg { width: 22px; height: 22px; stroke: var(--gray-600); fill: none; stroke-width: 1.5; }
+
+  .upload-zone h3 { font-size: 15px; font-weight: 500; margin-bottom: 4px; }
+  .upload-zone p { font-size: 13px; color: var(--gray-600); }
+
+  /* Preview */
+  #preview-section {
+    display: none;
+    border: var(--border);
+    border-radius: var(--radius);
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+    background: var(--white);
+    display: none;
+    align-items: center;
+    gap: 1rem;
+  }
+
+  #preview-img {
+    width: 80px; height: 80px;
+    object-fit: cover;
+    border-radius: 2px;
+    border: var(--border);
+    flex-shrink: 0;
+  }
+
+  .preview-info { flex: 1; }
+  .preview-info .fname { font-family: var(--mono); font-size: 13px; font-weight: 500; margin-bottom: 2px; }
+  .preview-info .fmeta { font-size: 12px; color: var(--gray-600); }
+
+  .btn-ghost {
+    background: none;
+    border: var(--border);
+    border-radius: var(--radius);
+    padding: 6px 14px;
+    font-size: 13px;
+    cursor: pointer;
+    font-family: var(--sans);
+    color: var(--gray-600);
+    transition: background 0.1s;
+  }
+  .btn-ghost:hover { background: var(--gray-100); }
+
+  /* Options */
+  .options-row {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+  }
+
+  .option-card {
+    flex: 1;
+    min-width: 140px;
+    border: var(--border);
+    border-radius: var(--radius);
+    padding: 12px 14px;
+    cursor: pointer;
+    transition: border-color 0.1s, background 0.1s;
+    background: var(--white);
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .option-card:hover { border-color: var(--gray-400); }
+  .option-card.selected { border-color: var(--accent-mid); background: var(--accent-light); }
+  .option-card input[type=radio] { margin-top: 2px; accent-color: var(--accent-mid); }
+  .option-card .opt-label { font-size: 13px; font-weight: 500; margin-bottom: 2px; }
+  .option-card .opt-desc { font-size: 12px; color: var(--gray-600); }
+
+  /* Analyze button */
+  #analyze-btn {
+    width: 100%;
+    padding: 14px;
+    font-size: 15px;
+    font-weight: 500;
+    font-family: var(--sans);
+    letter-spacing: 0.01em;
+    border: none;
+    border-radius: var(--radius);
+    cursor: pointer;
+    background: var(--black);
+    color: var(--white);
+    transition: opacity 0.15s, background 0.15s;
+    margin-bottom: 1.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+
+  #analyze-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+  #analyze-btn:not(:disabled):hover { background: var(--accent); }
+
+  #analyze-btn svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 1.5; }
+
+  /* Status */
+  #status-bar {
+    display: none;
+    padding: 12px 16px;
+    border-radius: var(--radius);
+    font-size: 14px;
+    margin-bottom: 1.5rem;
+    display: none;
+    align-items: center;
+    gap: 10px;
+  }
+
+  #status-bar.info { background: #e8f0ea; color: var(--accent); border: 1px solid #c0d8c8; }
+  #status-bar.success { background: var(--success-light); color: var(--success); border: 1px solid #c0d8c8; }
+  #status-bar.error { background: var(--danger-light); color: var(--danger); border: 1px solid #f0c8c8; }
+
+  .spinner {
+    width: 16px; height: 16px;
+    border: 2px solid currentColor;
+    border-top-color: transparent;
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+    flex-shrink: 0;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Results */
+  #results { display: none; }
+
+  .results-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1rem;
+    padding-bottom: 1rem;
+    border-bottom: var(--border);
+  }
+
+  .results-title { font-size: 15px; font-weight: 600; }
+  .results-vendor { font-size: 13px; color: var(--gray-600); font-family: var(--mono); margin-top: 2px; }
+
+  .btn-export {
+    background: var(--accent);
+    color: var(--white);
+    border: none;
+    border-radius: var(--radius);
+    padding: 8px 18px;
+    font-size: 13px;
+    font-weight: 500;
+    font-family: var(--sans);
+    cursor: pointer;
+    transition: opacity 0.1s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .btn-export:hover { opacity: 0.85; }
+  .btn-export svg { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 2; }
+
+  /* Table */
+  .table-wrap { overflow-x: auto; margin-bottom: 1.5rem; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+  }
+
+  thead tr { border-bottom: 2px solid var(--black); }
+  thead th {
+    padding: 8px 12px;
+    text-align: left;
+    font-weight: 600;
+    font-size: 12px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--gray-600);
+    white-space: nowrap;
+  }
+  thead th.num { text-align: right; }
+
+  tbody tr { border-bottom: var(--border); transition: background 0.1s; }
+  tbody tr:hover { background: var(--gray-100); }
+  tbody td { padding: 11px 12px; }
+  tbody td.num { text-align: right; font-family: var(--mono); font-size: 13px; }
+
+  .td-name { font-weight: 500; }
+  .td-badge {
+    display: inline-block;
+    font-size: 11px;
+    background: var(--accent-light);
+    color: var(--accent);
+    border-radius: 2px;
+    padding: 1px 7px;
+    margin-left: 8px;
+    font-family: var(--mono);
+    font-weight: 500;
+    vertical-align: middle;
+  }
+
+  tfoot tr { border-top: 2px solid var(--black); }
+  tfoot td { padding: 11px 12px; font-weight: 600; font-family: var(--mono); }
+  tfoot td.lbl { font-family: var(--sans); font-size: 13px; letter-spacing: 0.06em; text-transform: uppercase; }
+  tfoot td.num { text-align: right; font-size: 15px; }
+
+  /* Stats */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 1px;
+    border: var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    margin-bottom: 2rem;
+    background: var(--gray-200);
+  }
+
+  .stat {
+    background: var(--white);
+    padding: 1rem 1.25rem;
+  }
+
+  .stat-label { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--gray-600); margin-bottom: 4px; }
+  .stat-value { font-size: 26px; font-weight: 600; font-family: var(--mono); letter-spacing: -0.02em; }
+  .stat-value.green { color: var(--accent-mid); }
+
+  /* Reset link */
+  .analyze-again {
+    font-size: 13px;
+    color: var(--gray-600);
+    cursor: pointer;
+    background: none;
+    border: none;
+    font-family: var(--sans);
+    text-decoration: underline;
+    padding: 0;
+  }
+  .analyze-again:hover { color: var(--black); }
+
+  footer {
+    border-top: var(--border);
+    padding: 1.25rem 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 12px;
+    color: var(--gray-400);
+    font-family: var(--mono);
+  }
+
+  @media (max-width: 600px) {
+    main { padding: 2rem 1rem; }
+    .options-row { flex-direction: column; }
+    header { padding: 0 1rem; }
+    footer { flex-direction: column; gap: 4px; text-align: center; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <span class="logo">
+    <span class="logo-dot"></span>
+    FAKTURA GRUPISER
+  </span>
+  <span class="header-badge">AI UVOZNI ALAT</span>
+</header>
+
+<main>
+  <div class="hero">
+    <h1>Grupisanje stavki<br><span>sa fakture u sekundi</span></h1>
+    <p>Fotografiši fakturu — AI automatski čita i grupiše slične artikle. Eksportuj u Excel za dalji rad.</p>
+  </div>
+
+  <!-- Upload zone -->
+  <div class="upload-zone" id="upload-zone"
+    onclick="document.getElementById('file-input').click()"
+    ondragover="handleDragOver(event)"
+    ondragleave="handleDragLeave(event)"
+    ondrop="handleDrop(event)">
+    <div class="upload-icon">
+      <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+    </div>
+    <h3>Dodaj fakturu</h3>
+    <p>Klikni ili prevuci sliku (JPG, PNG, WEBP)</p>
+    <input id="file-input" type="file" accept="image/*" style="display:none" onchange="handleFile(this.files[0])">
+  </div>
+
+  <!-- Preview -->
+  <div id="preview-section">
+    <img id="preview-img" alt="Preview fakture" />
+    <div class="preview-info">
+      <div class="fname" id="preview-name"></div>
+      <div class="fmeta" id="preview-meta"></div>
+    </div>
+    <button class="btn-ghost" onclick="resetAll()">✕ Ukloni</button>
+  </div>
+
+  <!-- Group options -->
+  <div class="options-row" id="options-row">
+    <label class="option-card selected" onclick="selectOption(this, 'auto')">
+      <input type="radio" name="group" value="auto" checked>
+      <div>
+        <div class="opt-label">Auto grupiranje</div>
+        <div class="opt-desc">AI odlučuje šta ide zajedno</div>
+      </div>
+    </label>
+    <label class="option-card" onclick="selectOption(this, 'naziv')">
+      <input type="radio" name="group" value="naziv">
+      <div>
+        <div class="opt-label">Po nazivu</div>
+        <div class="opt-desc">Strogo po sličnosti naziva</div>
+      </div>
+    </label>
+    <label class="option-card" onclick="selectOption(this, 'kategorija')">
+      <input type="radio" name="group" value="kategorija">
+      <div>
+        <div class="opt-label">Po kategoriji</div>
+        <div class="opt-desc">Šire kategorije artikala</div>
+      </div>
+    </label>
+  </div>
+
+  <!-- Komentar -->
+  <div style="margin-bottom:1.5rem;">
+    <label for="komentar" style="display:block; font-size:13px; font-weight:500; margin-bottom:6px; color:var(--gray-600); letter-spacing:0.03em;">POSEBNO UPUTSTVO <span style="font-weight:300;">(opciono)</span></label>
+    <textarea id="komentar" rows="2" placeholder="Npr: izračunaj samo muška čarapa i muška boxerica, ostalo preskoči. Ili: grupiši sve pidzame zajedno bez obzira na razliku." style="width:100%; padding:10px 14px; font-family:var(--sans); font-size:14px; color:var(--black); background:var(--white); border:var(--border); border-radius:var(--radius); resize:vertical; outline:none; transition:border-color 0.15s; line-height:1.5;" onfocus="this.style.borderColor='var(--accent-mid)'" onblur="this.style.borderColor='var(--gray-200)'"></textarea>
+  </div>
+
+  <!-- Analyze button -->
+  <button id="analyze-btn" onclick="analyzeInvoice()" disabled>
+    <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/><path d="M11 8v6M8 11h6"/></svg>
+    Analiziraj fakturu
+  </button>
+
+  <!-- Status -->
+  <div id="status-bar">
+    <div class="spinner" id="spinner"></div>
+    <span id="status-text"></span>
+  </div>
+
+  <!-- Results -->
+  <div id="results">
+    <div class="results-header">
+      <div>
+        <div class="results-title">Grupisane stavke</div>
+        <div class="results-vendor" id="vendor-label"></div>
+      </div>
+      <button class="btn-export" onclick="exportExcel()">
+        <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Preuzmi Excel
+      </button>
+    </div>
+
+    <div class="stats-grid" id="stats-grid"></div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:38%">Naziv artikla</th>
+            <th class="num" style="width:13%">Količina</th>
+            <th class="num" style="width:11%">JM</th>
+            <th class="num" style="width:16%">Avg. cena</th>
+            <th class="num" style="width:16%">Ukupno</th>
+          </tr>
+        </thead>
+        <tbody id="result-body"></tbody>
+        <tfoot id="result-foot"></tfoot>
+      </table>
+    </div>
+
+    <button class="analyze-again" onclick="resetAll()">← Analiziraj drugu fakturu</button>
+  </div>
+
+</main>
+
+<footer>
+  <span>FAKTURA GRUPISER · POWERED BY CLAUDE AI</span>
+  <span id="footer-time"></span>
+</footer>
+
+<script>
+  let uploadedFile = null;
+  let base64Data = null;
+  let parsedData = null;
+
+  document.getElementById('footer-time').textContent = new Date().getFullYear();
+
+  function selectOption(el, val) {
+    document.querySelectorAll('.option-card').forEach(c => c.classList.remove('selected'));
+    el.classList.add('selected');
+    el.querySelector('input').checked = true;
+  }
+
+  function handleDragOver(e) {
+    e.preventDefault();
+    document.getElementById('upload-zone').classList.add('drag-over');
+  }
+
+  function handleDragLeave(e) {
+    document.getElementById('upload-zone').classList.remove('drag-over');
+  }
+
+  function handleDrop(e) {
+    e.preventDefault();
+    document.getElementById('upload-zone').classList.remove('drag-over');
+    const file = e.dataTransfer.files[0];
+    if (file && file.type.startsWith('image/')) handleFile(file);
+  }
+
+  function handleFile(file) {
+    if (!file) return;
+    uploadedFile = file;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      base64Data = e.target.result;
+      document.getElementById('preview-img').src = base64Data;
+      document.getElementById('preview-name').textContent = file.name;
+      document.getElementById('preview-meta').textContent =
+        (file.size / 1024).toFixed(0) + ' KB · ' + file.type;
+      document.getElementById('upload-zone').style.display = 'none';
+      const ps = document.getElementById('preview-section');
+      ps.style.display = 'flex';
+      const btn = document.getElementById('analyze-btn');
+      btn.disabled = false;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function resetAll() {
+    uploadedFile = null; base64Data = null; parsedData = null;
+    document.getElementById('upload-zone').style.display = 'block';
+    document.getElementById('preview-section').style.display = 'none';
+    document.getElementById('results').style.display = 'none';
+    setStatus(null);
+    const btn = document.getElementById('analyze-btn');
+    btn.disabled = true;
+    btn.innerHTML = `<svg viewBox="0 0 24 24" style="width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/><path d="M11 8v6M8 11h6"/></svg> Analiziraj fakturu`;
+    document.getElementById('file-input').value = '';
+  }
+
+  function setStatus(msg, type) {
+    const bar = document.getElementById('status-bar');
+    const spinner = document.getElementById('spinner');
+    if (!msg) { bar.style.display = 'none'; return; }
+    bar.className = type || 'info';
+    bar.style.display = 'flex';
+    document.getElementById('status-text').textContent = msg;
+    spinner.style.display = (type === 'success' || type === 'error') ? 'none' : 'block';
+  }
+
+  async function analyzeInvoice() {
+    if (!uploadedFile || !base64Data) return;
+    document.getElementById('results').style.display = 'none';
+
+    const btn = document.getElementById('analyze-btn');
+    btn.disabled = true;
+    btn.textContent = 'Analizujem...';
+
+    const groupBy = document.querySelector('input[name="group"]:checked').value;
+    const b64 = base64Data.split(',')[1];
+    const mediaType = uploadedFile.type || 'image/jpeg';
+
+    setStatus('AI čita fakturu...');
+
+    try {
+      const komentar = document.getElementById('komentar').value.trim();
+      const response = await fetch('/api/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageBase64: b64, mediaType, groupBy, komentar }),
+      });
+
+      setStatus('Obrađujem rezultate...');
+
+      const data = await response.json();
+
+      if (!response.ok || data.error) {
+        setStatus('Greška: ' + (data.error || 'Nepoznata greška'), 'error');
+        btn.disabled = false;
+        btn.textContent = 'Pokušaj ponovo';
+        return;
+      }
+
+      parsedData = data;
+      setStatus('Grupisano uspešno!', 'success');
+      renderResults(data);
+      btn.disabled = false;
+      btn.innerHTML = `<svg viewBox="0 0 24 24" style="width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/><path d="M11 8v6M8 11h6"/></svg> Analiziraj drugu fakturu`;
+
+    } catch (err) {
+      setStatus('Mrežna greška: ' + err.message, 'error');
+      btn.disabled = false;
+      btn.textContent = 'Pokušaj ponovo';
+    }
+  }
+
+  function renderResults(data) {
+    const tbody = document.getElementById('result-body');
+    const tfoot = document.getElementById('result-foot');
+    const statsGrid = document.getElementById('stats-grid');
+    tbody.innerHTML = '';
+
+    const vendorEl = document.getElementById('vendor-label');
+    vendorEl.textContent = [data.vendor, data.currency].filter(Boolean).join(' · ');
+
+    (data.groups || []).forEach(g => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td class="td-name">
+          ${escHtml(g.naziv)}
+          ${(g.stavke || 1) > 1 ? `<span class="td-badge">${g.stavke}×</span>` : ''}
+        </td>
+        <td class="num">${Number(g.kolicina).toLocaleString('sr-RS')}</td>
+        <td class="num" style="color:#6b6760">${escHtml(g.jm || '—')}</td>
+        <td class="num" style="color:#6b6760">${Number(g.cena || 0).toFixed(3)}</td>
+        <td class="num">${Number(g.ukupno || 0).toLocaleString('sr-RS', {minimumFractionDigits:1, maximumFractionDigits:1})}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+
+    const total = Number(data.ukupno_sve || (data.groups||[]).reduce((s,g)=>s+Number(g.ukupno||0),0));
+    tfoot.innerHTML = `<tr>
+      <td class="lbl">Ukupno</td>
+      <td colspan="3"></td>
+      <td class="num">${total.toLocaleString('sr-RS', {minimumFractionDigits:1, maximumFractionDigits:1})} ${data.currency||''}</td>
+    </tr>`;
+
+    const origCount = (data.groups||[]).reduce((s,g)=>s+(g.stavke||1), 0);
+    const groupCount = (data.groups||[]).length;
+    const saved = origCount - groupCount;
+
+    statsGrid.innerHTML = `
+      <div class="stat">
+        <div class="stat-label">Originalne stavke</div>
+        <div class="stat-value">${origCount}</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Grupisano u</div>
+        <div class="stat-value">${groupCount}</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Uštedeno redova</div>
+        <div class="stat-value green">${saved > 0 ? '-'+saved : '0'}</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Ukupna vrednost</div>
+        <div class="stat-value">${total.toLocaleString('sr-RS', {maximumFractionDigits:0})}</div>
+      </div>
+    `;
+
+    document.getElementById('results').style.display = 'block';
+    document.getElementById('results').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function exportExcel() {
+    if (!parsedData || !parsedData.groups) return;
+    const rows = [['Naziv artikla', 'Kolicina', 'JM', 'Avg. cena', 'Ukupno', 'Broj originalnih stavki']];
+    parsedData.groups.forEach(g => {
+      rows.push([g.naziv, g.kolicina, g.jm||'', Number(g.cena||0).toFixed(3), Number(g.ukupno||0).toFixed(1), g.stavke||1]);
+    });
+    const total = Number(parsedData.ukupno_sve || 0);
+    rows.push(['UKUPNO', '', '', '', total.toFixed(1), '']);
+
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    ws['!cols'] = [{wch:28},{wch:10},{wch:8},{wch:14},{wch:14},{wch:24}];
+
+    // Style header row bold
+    const range = XLSX.utils.decode_range(ws['!ref']);
+    for (let C = range.s.c; C <= range.e.c; C++) {
+      const addr = XLSX.utils.encode_cell({r:0, c:C});
+      if (!ws[addr]) continue;
+      ws[addr].s = { font: { bold: true } };
+    }
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Faktura grupisana');
+    const vendor = parsedData.vendor ? parsedData.vendor.replace(/[^a-zA-Z0-9]/g,'_').slice(0,20) : 'faktura';
+    XLSX.writeFile(wb, vendor + '_grupisana.xlsx');
+  }
+
+  function escHtml(str) {
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+</script>
+</body>
+</html>
